@@ -1,4 +1,4 @@
-import { CartItem } from '../models';
+import { CartItem } from '../types';
 
 export function calculateCartTotal(items: CartItem[]): number {
   return items.length

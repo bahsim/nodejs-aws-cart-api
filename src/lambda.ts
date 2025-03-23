@@ -5,9 +5,11 @@ import serverlessExpress from '@vendia/serverless-express';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import * as express from 'express';
+import express from 'express';
 import { DataSource } from 'typeorm';
 import { getDatabaseConfig } from './config/database.config';
+// import helmet from 'helmet';
+// import * as compression from 'compression';
 
 let cachedServer: Express;
 let dataSource: DataSource;
@@ -18,6 +20,11 @@ async function bootstrap(): Promise<Express> {
     AppModule,
     new ExpressAdapter(expressApp),
   );
+  
+  // // Add security headers
+  // app.use(helmet());
+  // // Add compression
+  // app.use(Compression());
 
   // Initialize TypeORM connection if not exists
   if (!dataSource || !dataSource.isInitialized) {
@@ -30,12 +37,20 @@ async function bootstrap(): Promise<Express> {
   return expressApp;
 }
 
-export const handler: Handler<APIGatewayProxyEvent> = async (
+export const cartService: Handler<APIGatewayProxyEvent> = async (
   _event: APIGatewayProxyEvent,
-  _context: Context
+  _context: Context,
 ) => {
-  if (!cachedServer) {
-    cachedServer = await bootstrap();
+  try {
+    if (!cachedServer) {
+      cachedServer = await bootstrap();
+    }
+    return serverlessExpress({ app: cachedServer });
+  } catch (error) {
+    console.error('Lambda handler error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: 'Internal Server Error' }),
+    };
   }
-  return serverlessExpress({ app: cachedServer });
 };

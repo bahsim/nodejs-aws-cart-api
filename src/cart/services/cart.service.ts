@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Cart, CartStatuses } from '../types';
+import { Cart, CartStatuses } from '../models';
 import { PutCartPayload } from 'src/order/type';
 
 @Injectable()

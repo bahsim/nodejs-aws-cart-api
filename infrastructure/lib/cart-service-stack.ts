@@ -8,6 +8,23 @@ import { config as dotenvConfig } from 'dotenv';
 
 dotenvConfig();
 
+/**
+ * Represents the CloudFormation stack for the Cart Service.
+ * This stack includes the Lambda function for the Cart Service and an API Gateway to expose the Lambda function as a REST API.
+ *
+ * @class
+ * @extends {cdk.Stack}
+ *
+ * @param {cdk.App} scope - The scope in which this stack is defined.
+ * @param {string} id - The scoped construct ID.
+ * @param {cdk.StackProps} [props] - Stack properties.
+ *
+ * @example
+ * new CartServiceStack(app, 'CartServiceStack');
+ *
+ * @property {nodejs.NodejsFunction} cartApi - The Lambda function for the Cart Service.
+ * @property {apigateway.RestApi} api - The API Gateway REST API for the Cart Service.
+ */
 export class CartServiceStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);

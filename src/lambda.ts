@@ -20,83 +20,21 @@ import { typeOrmConfig } from './config/typeorm.config';
 let cachedServer: Express;
 let dataSource: DataSource;
 
-// Initialize database connection outside the handler
-const initializeDatabase = async () => {
-  if (!dataSource || !dataSource.isInitialized) {
-    console.log('Initializing database connection...', {
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      database: process.env.DB_DATABASE,
-      // Don't log credentials
-    });
-
-    try {
-      dataSource = new DataSource(typeOrmConfig);
-      await dataSource.initialize();
-
-      // Test the connection
-      await dataSource.query('SELECT 1');
-
-      console.log('Database connection initialized successfully');
-    } catch (error) {
-      console.error('Database initialization error:', error);
-      throw error;
-    }
-  }
-  return dataSource;
-};
-
-// Initialize server outside the handler
-const initializeServer = async () => {
-  if (!cachedServer) {
-    console.log('Initializing server...');
-    cachedServer = await bootstrap();
-    console.log('Server initialized');
-  }
-
-  return cachedServer;
-};
-
-async function bootstrap(): Promise<Express> {
-  const expressApp = express();
-
-  // Add raw body parsing middleware
-  expressApp.use(
-    express.json({
-      verify: (req: any, res, buf) => {
-        req.rawBody = buf.toString();
-      },
-    }),
-  );
-
-  const app = await NestFactory.create(
-    AppModule,
-    new ExpressAdapter(expressApp),
-  );
-
-  app.enableCors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders:
-      'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-    exposedHeaders: 'Content-Type,Authorization',
-  });
-
-  // // Add security headers
-  // app.use(helmet());
-  // Add compression
-  // app.use(Compression());
-
-  // Initialize TypeORM connection if not exists
-  if (!dataSource || !dataSource.isInitialized) {
-    dataSource = new DataSource(typeOrmConfig);
-    await dataSource.initialize();
-  }
-
-  await app.init();
-  return expressApp;
-}
-
+/**
+ * AWS Lambda handler for the cart service.
+ * 
+ * This handler processes incoming API Gateway events, initializes the database and server,
+ * handles CORS preflight requests, processes the request body, and invokes the serverless
+ * Express application.
+ * 
+ * @param {APIGatewayProxyEvent} event - The event object containing request details.
+ * @param {Context} context - The context object containing runtime information.
+ * @param {Callback} callback - The callback function to signal completion.
+ * 
+ * @returns {Promise<APIGatewayProxyResult>} The response object containing status code, headers, and body.
+ * 
+ * @throws {Error} If an error occurs during processing, a 500 Internal Server Error response is returned.
+ */
 export const cartService: Handler<APIGatewayProxyEvent> = async (
   event: APIGatewayProxyEvent,
   context: Context,
@@ -211,3 +149,94 @@ export const cartService: Handler<APIGatewayProxyEvent> = async (
     };
   }
 };
+
+/**
+ * Initializes the database connection if it is not already initialized.
+ * Logs the initialization process and handles any errors that occur.
+ * 
+ * @returns {Promise<DataSource>} The initialized data source.
+ * @throws Will throw an error if the database initialization fails.
+ */
+async function initializeDatabase() {
+  if (!dataSource || !dataSource.isInitialized) {
+    console.log('Initializing database connection...', {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      database: process.env.DB_DATABASE,
+      // Don't log credentials
+    });
+
+    try {
+      dataSource = new DataSource(typeOrmConfig);
+      await dataSource.initialize();
+
+      // Test the connection
+      await dataSource.query('SELECT 1');
+
+      console.log('Database connection initialized successfully');
+    } catch (error) {
+      console.error('Database initialization error:', error);
+      throw error;
+    }
+  }
+  return dataSource;
+}
+
+/**
+ * Initializes the server if it is not already cached.
+ * 
+ * This function checks if the server is already cached. If not, it initializes
+ * the server by calling the `bootstrap` function and caches the result. It logs
+ * messages to the console during the initialization process.
+ * 
+ * @returns {Promise<any>} A promise that resolves to the cached server instance.
+ */
+async function initializeServer(): Promise<any> {
+  if (!cachedServer) {
+    console.log('Initializing server...');
+    cachedServer = await bootstrap();
+    console.log('Server initialized');
+  }
+
+  return cachedServer;
+}
+
+async function bootstrap(): Promise<Express> {
+  const expressApp = express();
+
+  // Add raw body parsing middleware
+  expressApp.use(
+    express.json({
+      verify: (req: any, res, buf) => {
+        req.rawBody = buf.toString();
+      },
+    }),
+  );
+
+  const app = await NestFactory.create(
+    AppModule,
+    new ExpressAdapter(expressApp),
+  );
+
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders:
+      'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+    exposedHeaders: 'Content-Type,Authorization',
+  });
+
+  // // Add security headers
+  // app.use(helmet());
+  // Add compression
+  // app.use(Compression());
+
+  // Initialize TypeORM connection if not exists
+  if (!dataSource || !dataSource.isInitialized) {
+    dataSource = new DataSource(typeOrmConfig);
+    await dataSource.initialize();
+  }
+
+  await app.init();
+  return expressApp;
+}

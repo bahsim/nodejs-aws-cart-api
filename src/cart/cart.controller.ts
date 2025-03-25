@@ -17,12 +17,14 @@ import { CartService } from './services';
 import { CreateOrderDto, PutCartPayload } from 'src/order/type';
 import { CartItem } from './entities/cart-item.entity';
 import { Order } from '../order/entities/order.entity';
+import { DataSource } from 'typeorm';
 
 @Controller('api/profile/cart')
 export class CartController {
   constructor(
     private cartService: CartService,
     private orderService: OrderService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // @UseGuards(JwtAuthGuard)
@@ -65,27 +67,37 @@ export class CartController {
   @Put('order')
   async checkout(@Req() req: AppRequest, @Body() body: CreateOrderDto) {
     const userId = getUserIdFromRequest(req);
-    const cart = await this.cartService.findByUserId(userId);
 
-    if (!(cart && cart.items.length)) {
-      throw new BadRequestException('Cart is empty');
-    }
+    // Use your database connection/entity manager to start a transaction
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        // Find cart within transaction
+        const cart = await this.cartService.findByUserId(userId);
 
-    const { id: cartId, items } = cart;
-    const order = this.orderService.create({
-      userId,
-      cartId,
-      items: items.map(({ product_id, count }) => ({
-        productId: product_id,
-        count,
-      })),
-      address: body.address,
-    });
-    this.cartService.removeByUserId(userId);
+        if (!(cart && cart.items.length)) {
+          throw new BadRequestException('Cart is empty');
+        }
 
-    return { order };
+        const { id: cartId, items } = cart;
+
+        // Create order within the same transaction
+        const order = await this.orderService.create({
+          userId,
+          cartId,
+          items: items.map(({ product_id, count }) => ({
+            productId: product_id,
+            count,
+          })),
+          address: body.address,
+        });
+
+        // Remove cart within the same transaction
+        await this.cartService.removeByUserId(userId);
+
+        return { order };
+      },
+    );
   }
-
   @UseGuards(BasicAuthGuard)
   @Get('order')
   getOrder(): Promise<Order[]> {

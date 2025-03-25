@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { Entity, Column, ManyToOne, JoinColumn, PrimaryColumn } from 'typeorm';
 import { Cart } from './cart.entity';
 

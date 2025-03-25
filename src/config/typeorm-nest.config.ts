@@ -1,21 +1,25 @@
 import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
-import { DataSourceOptions } from 'typeorm';
 import { Order } from '../order/entities/order.entity';
 import { User } from '../users/entities/user.entity';
+import { ConfigService } from '@nestjs/config';
+import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
 
-export const typeOrmConfig: DataSourceOptions = {
+export const typeOrmNestConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => ({
   name: 'connection_' + randomBytes(4).toString('hex'),
   type: 'postgres',
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
+  host: configService.get('DB_HOST'),
+  port: +configService.get<number>('DB_PORT'),
+  username: configService.get('DB_USERNAME'),
+  password: configService.get('DB_PASSWORD'),
+  database: configService.get('DB_DATABASE'),
   entities: [Cart, CartItem, Order, User],
-  synchronize: true, // Set to false in production
+  synchronize: false, // set to false in production
   logging: true,
+  autoLoadEntities: true,
   ssl: {
     rejectUnauthorized: false, // you might need this if using SSL
   },
@@ -27,4 +31,4 @@ export const typeOrmConfig: DataSourceOptions = {
     keepalive: true,
     keepaliveInitialDelayMillis: 5000,
   },
-};
+});

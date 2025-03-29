@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import 'reflect-metadata';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/services/users.service';
 import { User } from '../users/entities/user.entity';
@@ -12,12 +18,20 @@ type TokenResponse = {
 @Injectable()
 export class AuthService {
   constructor(
+    @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
     private jwtService: JwtService,
-  ) {}
+  ) {
+    this.loginJWT = this.loginJWT.bind(this);
+    this.loginBasic = this.loginBasic.bind(this);
+  }
 
   async register(payload: User) {
-    const user = this.usersService.findOne(payload.name);
+    if (!this.usersService) {
+      throw new Error('UsersService not initialized');
+    }
+
+    const user = await this.usersService.findOne(payload.name);
 
     if (user) {
       throw new BadRequestException('User with such name already exists');
@@ -30,18 +44,26 @@ export class AuthService {
   async validateUser(name: string, password: string): Promise<User> {
     const user = await this.usersService.findOne(name);
 
-    if (user) {
-      return user;
+    if (!user) {
+      return null;
     }
 
-    return this.usersService.createOne({ name, password });
+    const isPasswordValid = (password === user.password);
+
+    if (isPasswordValid) {
+      const { password, ...result } = user;
+
+      return result;
+    }
+
+    return null;
   }
 
   login(user: User, type: 'jwt' | 'basic' | 'default'): TokenResponse {
     const LOGIN_MAP = {
-      jwt: this.loginJWT,
-      basic: this.loginBasic,
-      default: this.loginJWT,
+      jwt: (user: User) => this.loginJWT(user),
+      basic: (user: User) => this.loginBasic(user),
+      default: (user: User) => this.loginJWT(user),
     };
     const login = LOGIN_MAP[type];
 

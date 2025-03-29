@@ -5,6 +5,7 @@ import {
   Context,
   Callback,
   APIGatewayProxyResult,
+  APIGatewayProxyEventV2,
 } from 'aws-lambda';
 import { Express } from 'express';
 import serverlessExpress from '@vendia/serverless-express';
@@ -21,36 +22,73 @@ let cachedServer: Express;
 let dataSource: DataSource;
 
 /**
- * AWS Lambda handler for the cart service.
+ * AWS Lambda handler for processing API Gateway Proxy events.
+ * This handler is designed to work with both API Gateway and Lambda Function URLs.
+ * It initializes the database and server, handles CORS preflight requests, and processes
+ * incoming requests using `serverless-express`.
+ *
+ * @param event - The API Gateway Proxy event containing request details.
+ * @param context - The Lambda execution context.
+ * @param callback - The callback function for the Lambda handler.
+ * @returns A promise resolving to an API Gateway Proxy result containing the HTTP response.
+ *
+ * @throws {Error} If the server initialization fails or an unexpected error occurs.
+ *
+ * @example
+ * ```typescript
+ * import { cartService } from './lambda';
  * 
- * This handler processes incoming API Gateway events, initializes the database and server,
- * handles CORS preflight requests, processes the request body, and invokes the serverless
- * Express application.
+ * const event = {
+ *   rawPath: '/cart',
+ *   requestContext: { http: { method: 'GET' } },
+ *   queryStringParameters: { id: '123' },
+ *   headers: { 'Content-Type': 'application/json' },
+ * };
  * 
- * @param {APIGatewayProxyEvent} event - The event object containing request details.
- * @param {Context} context - The context object containing runtime information.
- * @param {Callback} callback - The callback function to signal completion.
+ * const context = { callbackWaitsForEmptyEventLoop: true };
  * 
- * @returns {Promise<APIGatewayProxyResult>} The response object containing status code, headers, and body.
- * 
- * @throws {Error} If an error occurs during processing, a 500 Internal Server Error response is returned.
+ * cartService(event, context, (error, result) => {
+ *   if (error) {
+ *     console.error('Error:', error);
+ *   } else {
+ *     console.log('Result:', result);
+ *   }
+ * });
+ * ```
  */
-export const cartService: Handler<APIGatewayProxyEvent> = async (
-  event: APIGatewayProxyEvent,
+export const cartService: Handler<APIGatewayProxyEventV2> = async (
+  event: APIGatewayProxyEventV2,
   context: Context,
   callback: Callback,
 ) => {
   // Set context callbackWaitsForEmptyEventLoop to false
   context.callbackWaitsForEmptyEventLoop = false;
 
-  console.log('Handler started', {
-    path: event.path,
-    method: event.httpMethod,
-  });
-
   try {
+    // Transform the event if it's from Lambda Function URL
+    const transformedEvent = {
+      ...event,
+      path: event.rawPath || '/',
+      httpMethod: event.requestContext.http.method,
+      // Ensure other required properties exist
+      queryStringParameters: event.queryStringParameters || {},
+      pathParameters: event.pathParameters || {},
+      headers: {
+        ...event.headers,
+        'Content-Type':
+          event.headers?.['Content-Type'] ||
+          event.headers?.['content-type'] ||
+          'application/json',
+      },
+    };
+
+    console.log('Handler started', {
+      path: transformedEvent.path,
+      method: transformedEvent.httpMethod,
+    });
+
     // Handle OPTIONS requests for CORS
-    if (event.httpMethod === 'OPTIONS') {
+    if (transformedEvent.httpMethod === 'OPTIONS') {
       return {
         statusCode: 200,
         headers: {
@@ -70,67 +108,24 @@ export const cartService: Handler<APIGatewayProxyEvent> = async (
       initializeServer(),
     ]);
 
-    if (!cachedServer) {
-      cachedServer = await bootstrap();
+    // Ensure we have a server instance
+    if (!server) {
+      throw new Error('Failed to initialize server');
     }
 
-    // Log the incoming request for debugging
-    console.log('Incoming event:', {
-      path: event.path,
-      httpMethod: event.httpMethod,
-      headers: event.headers,
-      body: event.body,
-    });
-
-    // Handle the request body
-    if (event.body) {
-      try {
-        // If body is base64 encoded, decode it
-        if (event.isBase64Encoded) {
-          event.body = Buffer.from(event.body, 'base64').toString();
-        }
-
-        // Ensure body is parsed as JSON if content-type is application/json
-        const contentType =
-          event.headers['content-type'] || event.headers['Content-Type'];
-        if (contentType?.includes('application/json')) {
-          event.body =
-            typeof event.body === 'string'
-              ? JSON.parse(event.body)
-              : event.body;
-        }
-
-        console.log('Processed body:', event.body);
-      } catch (error) {
-        console.error('Error processing body:', error);
-        return {
-          statusCode: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: 'Invalid request body',
-            error: error.message,
-          }),
-        };
-      }
-    }
-
+    // Process the request using serverless-express
     const response: APIGatewayProxyResult = await serverlessExpress({
       app: server,
-    })(event, context, callback);
-
-    const headers = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers':
-        'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-      ...(response.headers || {}),
-    };
+    })(transformedEvent, context, callback);
 
     return {
       ...response,
-      headers,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers':
+          'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        ...(response.headers || {}),
+      },
     };
     // return serverlessExpress({ app: cachedServer });
   } catch (error) {
@@ -153,7 +148,7 @@ export const cartService: Handler<APIGatewayProxyEvent> = async (
 /**
  * Initializes the database connection if it is not already initialized.
  * Logs the initialization process and handles any errors that occur.
- * 
+ *
  * @returns {Promise<DataSource>} The initialized data source.
  * @throws Will throw an error if the database initialization fails.
  */
@@ -184,11 +179,11 @@ async function initializeDatabase() {
 
 /**
  * Initializes the server if it is not already cached.
- * 
+ *
  * This function checks if the server is already cached. If not, it initializes
  * the server by calling the `bootstrap` function and caches the result. It logs
  * messages to the console during the initialization process.
- * 
+ *
  * @returns {Promise<any>} A promise that resolves to the cached server instance.
  */
 async function initializeServer(): Promise<any> {

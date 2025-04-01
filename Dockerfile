@@ -5,7 +5,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files and npmrc
-COPY package*.json .npmrc ./
+COPY package*.json ./
 
 # Install dependencies and clean cache
 RUN npm ci --platform=linux --arch=x64 && \
@@ -17,7 +17,7 @@ COPY src ./src
 
 # Build the application and cleanup
 RUN npm run build && \
-    rm -rf node_modules src test .npmrc && \
+    rm -rf node_modules src test && \
     rm -rf /root/.npm /tmp/*
 
 # ----------------------------------------
@@ -39,7 +39,7 @@ WORKDIR /app
 
 # Copy only the necessary files from builder
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --chown=nodejs:nodejs package*.json .npmrc ./
+COPY --chown=nodejs:nodejs package*.json ./
 
 # Install production dependencies and cleanup
 RUN npm ci --omit=dev --no-audit --no-fund --production --platform=linux --arch=x64 && \
@@ -50,7 +50,7 @@ RUN npm ci --omit=dev --no-audit --no-fund --production --platform=linux --arch=
     rm -rf /usr/local/share/man && \
     find /usr/local/lib/node_modules -maxdepth 1 -type d -not -name node_modules -exec rm -rf {} + && \
     find /usr/local/bin -type f -not -name node -exec rm -f {} + && \
-    rm -f .npmrc && \
+    rm -f && \
     # Additional cleanup
     rm -rf /var/cache/apk/* && \
     rm -rf /root/.npm/* && \

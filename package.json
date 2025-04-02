@@ -24,7 +24,9 @@
     "package": "npm run build && cp package.json dist/ && cd dist && npm install --production",
     "docker:build": "docker build -t cart-service .",
     "docker:run": "docker run --env-file ./.env -p 4000:4000 cart-service",
-    "docker:start": "npm run docker:build && npm run docker:run"
+    "docker:start": "npm run docker:build && npm run docker:run",
+    "eb:terminate": "eb terminate develop",
+    "create-eb": "create-eb-env.bat"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.3",

@@ -1,0 +1,50 @@
+# Dependencies
+node_modules       # Large directory of installed packages - can be reinstalled from package.json
+npm-debug.log      # NPM's debug output files - not needed for production
+yarn-debug.log     # Yarn's debug output files - not needed for production
+yarn-error.log     # Yarn's error logs - development only
+
+# Version control
+.git               # Git repository data - large and not needed for running the app
+.gitignore         # Git configuration - development only
+.gitattributes     # Git attributes configuration - development only
+
+# Development and IDE files
+.idea              # IntelliJ/WebStorm IDE settings
+.vscode            # VS Code IDE settings
+*.swp              # Vim temporary files
+*.swo              # Vim backup files
+.DS_Store          # macOS system files
+.env               # Local environment variables - should not be in image
+.env.*             # All environment files
+!.env.example      # Keep example env file as template
+
+# Test files
+coverage           # Test coverage reports - development only
+*.test.js          # Test files - not needed in production
+*.spec.js          # Test specification files - not needed in production
+__tests__          # Test directories
+test               # Test directories
+
+# Build outputs
+dist               # Compiled code - will be rebuilt during docker build
+build              # Build artifacts - will be rebuilt
+*.tsbuildinfo      # TypeScript incremental build info
+
+# Documentation
+README.md          # Project documentation - not needed in production
+CHANGELOG.md       # Change history - not needed in production
+docs               # Documentation folder
+*.md               # All markdown files
+
+# Docker related
+Dockerfile         # Not needed inside the image
+docker-compose*    # Docker Compose files - not needed inside image
+.docker            # Docker configuration files
+
+# Misc
+.npm              # NPM cache directory
+.eslintcache      # ESLint cache - development only
+.eslintrc         # ESLint configuration - development only
+.prettierrc       # Prettier configuration - development only
+.editorconfig     # Editor configuration - development only

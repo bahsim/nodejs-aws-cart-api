@@ -1,3 +1,8 @@
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
 # compiled output
 /dist
 /node_modules

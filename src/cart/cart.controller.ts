@@ -11,25 +11,27 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { BasicAuthGuard } from '../auth';
-import { Order, OrderService } from '../order';
+import { OrderService } from '../order';
 import { AppRequest, getUserIdFromRequest } from '../shared';
-import { calculateCartTotal } from './models-rules';
 import { CartService } from './services';
-import { CartItem } from './models';
 import { CreateOrderDto, PutCartPayload } from 'src/order/type';
+import { CartItem } from './entities/cart-item.entity';
+import { Order } from '../order/entities/order.entity';
+import { DataSource } from 'typeorm';
 
 @Controller('api/profile/cart')
 export class CartController {
   constructor(
     private cartService: CartService,
     private orderService: OrderService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // @UseGuards(JwtAuthGuard)
   @UseGuards(BasicAuthGuard)
   @Get()
-  findUserCart(@Req() req: AppRequest): CartItem[] {
-    const cart = this.cartService.findOrCreateByUserId(
+  async findUserCart(@Req() req: AppRequest): Promise<CartItem[]> {
+    const cart = await this.cartService.findOrCreateByUserId(
       getUserIdFromRequest(req),
     );
 
@@ -39,12 +41,12 @@ export class CartController {
   // @UseGuards(JwtAuthGuard)
   @UseGuards(BasicAuthGuard)
   @Put()
-  updateUserCart(
+  async updateUserCart(
     @Req() req: AppRequest,
     @Body() body: PutCartPayload,
-  ): CartItem[] {
+  ): Promise<CartItem[]> {
     // TODO: validate body payload...
-    const cart = this.cartService.updateByUserId(
+    const cart = await this.cartService.updateByUserId(
       getUserIdFromRequest(req),
       body,
     );
@@ -63,36 +65,42 @@ export class CartController {
   // @UseGuards(JwtAuthGuard)
   @UseGuards(BasicAuthGuard)
   @Put('order')
-  checkout(@Req() req: AppRequest, @Body() body: CreateOrderDto) {
+  async checkout(@Req() req: AppRequest, @Body() body: CreateOrderDto) {
     const userId = getUserIdFromRequest(req);
-    const cart = this.cartService.findByUserId(userId);
 
-    if (!(cart && cart.items.length)) {
-      throw new BadRequestException('Cart is empty');
-    }
+    // Use your database connection/entity manager to start a transaction
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        // Find cart within transaction
+        const cart = await this.cartService.findByUserId(userId);
 
-    const { id: cartId, items } = cart;
-    const total = calculateCartTotal(items);
-    const order = this.orderService.create({
-      userId,
-      cartId,
-      items: items.map(({ product, count }) => ({
-        productId: product.id,
-        count,
-      })),
-      address: body.address,
-      total,
-    });
-    this.cartService.removeByUserId(userId);
+        if (!(cart && cart.items.length)) {
+          throw new BadRequestException('Cart is empty');
+        }
 
-    return {
-      order,
-    };
+        const { id: cartId, items } = cart;
+
+        // Create order within the same transaction
+        const order = await this.orderService.create({
+          userId,
+          cartId,
+          items: items.map(({ product_id, count }) => ({
+            productId: product_id,
+            count,
+          })),
+          address: body.address,
+        });
+
+        // Remove cart within the same transaction
+        await this.cartService.removeByUserId(userId);
+
+        return { order };
+      },
+    );
   }
-
   @UseGuards(BasicAuthGuard)
   @Get('order')
-  getOrder(): Order[] {
+  getOrder(): Promise<Order[]> {
     return this.orderService.getAll();
   }
 }

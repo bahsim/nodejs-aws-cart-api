@@ -10,7 +10,7 @@ import { OrderModule } from './order/order.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmNestConfig } from './config/typeorm-nest.config';
-import { LocalStrategy } from './auth/strategies';
+import { BasicStrategy, LocalStrategy } from './auth/strategies';
 
 @Module({
   imports: [
@@ -26,6 +26,6 @@ import { LocalStrategy } from './auth/strategies';
     OrderModule,
   ],
   controllers: [AppController],
-  providers: [AuthService, LocalStrategy],
+  providers: [AuthService, BasicStrategy, LocalStrategy],
 })
 export class AppModule {}
